@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, AlertTriangle, ArrowDownLeft, ArrowRight, BarChart3,
-  Bell, Check, CheckCircle2, ChevronDown, CircleHelp, ClipboardList, CreditCard,
-  IndianRupee, LogOut, MessageCircle, Mic, MicOff, Package,
+  Bell, Check, CheckCircle2, ChevronDown, CircleHelp, Clock3, CreditCard,
+  IndianRupee, LogOut, MessageCircle, Mic, MicOff, Package, RotateCcw,
   Plus, Send, Settings, ShoppingBag, Sparkles, Store, TrendingUp, Users, Wallet, X,
 } from "lucide-react";
 import {
@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { auth, db, isFirebaseConfigured } from "./firebase";
 import { customerDocumentId, hasKannada, normalizeKannadaMessage, speechRecognitionError } from "./messageParser";
+import { DEAD_STOCK_THRESHOLD_DAYS, getDeadStock } from "./deadStock";
 
 const starterProducts = [
   { id: "maggi", name: "Maggi", stock: 40, minStock: 10, unit: "packets", price: 14, color: "orange" },
@@ -49,7 +50,7 @@ const navItems = [
   { id: "Sales & Reports", icon: BarChart3 },
   { id: "Customers (Udhaar)", icon: Users },
   { id: "Reorder Suggestions", icon: ShoppingBag },
-  { id: "Daily Summary", icon: ClipboardList },
+  { id: "Dead Stock", icon: Clock3 },
   { id: "Settings", icon: Settings },
 ];
 
@@ -182,8 +183,9 @@ function AssistantReply({ activity }) {
   const credit = type === "credit";
   const payment = type === "payment";
   const damage = type === "damaged";
+  const supplierReturn = type === "supplier-return";
   const received = type === "received" || type === "returned";
-  const title = credit ? "Credit transaction recorded!" : payment ? "Payment recorded!" : damage ? "Damaged stock recorded." : received ? "New stock added!" : "Stock updated successfully!";
+  const title = credit ? "Credit transaction recorded!" : payment ? "Payment recorded!" : supplierReturn ? "Supplier return recorded!" : damage ? "Damaged stock recorded." : received ? "New stock added!" : "Stock updated successfully!";
   return (
     <div className="assistant-reply">
       <div className="reply-title"><span className={`reply-status ${damage ? "warning" : ""}`}>{damage ? <AlertTriangle size={15} /> : <Check size={15} />}</span><b>{title}</b></div>
@@ -193,7 +195,7 @@ function AssistantReply({ activity }) {
       {credit && <div className="credit-reply"><span>Customer</span><b>{activity.customer}</b><span>Credit added</span><b>{rupees(activity.amount)}</b><span>Item</span><b>{activity.items?.map((item) => `${item.name} (${item.quantity})`).join(", ")}</b><span>Outstanding balance</span><b>{rupees(activity.balance)}</b></div>}
       {payment && <p className="reply-note">{activity.customer} paid {rupees(activity.amount)}. Balance: {rupees(activity.balance)}.</p>}
       {activity.message && !activity.items?.length && <p className="reply-note">{activity.message}</p>}
-      <p className="reply-note">{credit || payment ? "Customer account updated." : damage ? "Stock count adjusted." : "Anything else you'd like to update?"}</p>
+      <p className="reply-note">{credit || payment ? "Customer account updated." : supplierReturn ? "Returned stock was removed from your inventory." : damage ? "Stock count adjusted." : "Anything else you'd like to update?"}</p>
     </div>
   );
 }
@@ -329,14 +331,17 @@ function Sidebar({ active, onNavigate, user, onSignOut, shopName }) {
   </aside>;
 }
 
-function PageContent({ page, products, activities, customers, onUpdateMinStock, onReorder, shopName, setShopName, onAddCredit, onRecordPayment }) {
+function PageContent({ page, products, activities, customers, onUpdateMinStock, onReorder, onReturnToSupplier, shopName, setShopName, onAddCredit, onRecordPayment }) {
   const [shopNameDraft, setShopNameDraft] = useState(shopName);
   const [customerName, setCustomerName] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
   const [paymentAmounts, setPaymentAmounts] = useState({});
+  const [returnQuantities, setReturnQuantities] = useState({});
   const [savingCredit, setSavingCredit] = useState(false);
   const [savingPayment, setSavingPayment] = useState("");
+  const [savingReturn, setSavingReturn] = useState("");
   const totalCustomerBalance = customers.reduce((total, customer) => total + Number(customer.balance || 0), 0);
+  const deadStock = getDeadStock(products, activities);
   useEffect(() => setShopNameDraft(shopName), [shopName]);
   if (page === "Inventory") return <section className="page-card"><div className="page-heading"><span className="page-icon blue"><Package size={20} /></span><div><h2>Your inventory</h2><p>Current stock and reorder levels for every item.</p></div></div><div className="table-wrap"><table><thead><tr><th>Product</th><th>In stock</th><th>Minimum level</th><th>Status</th><th></th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><div className="table-product"><ProductGlyph color={product.color} /><b>{product.name}</b></div></td><td>{product.stock} {product.unit}</td><td><input className="min-stock-input" type="number" min="0" defaultValue={product.minStock} aria-label={`${product.name} minimum stock`} onBlur={(event) => { const value = Number(event.currentTarget.value); if (Number.isInteger(value) && value >= 0) onUpdateMinStock(product, value); else event.currentTarget.value = String(product.minStock); }} /></td><td><span className={`status-pill ${product.stock <= product.minStock ? "low" : "good"}`}>{product.stock <= product.minStock ? "Reorder soon" : "In stock"}</span></td><td>{product.stock <= product.minStock && <button className="table-reorder" onClick={() => onReorder([product])}>Reorder</button>}</td></tr>)}</tbody></table></div><p className="inline-hint">Change a minimum level and leave the field to save. Stock counts change through chat transactions.</p></section>;
   if (page === "Sales & Reports") {
@@ -369,17 +374,42 @@ function PageContent({ page, products, activities, customers, onUpdateMinStock, 
     const low = products.filter((product) => product.stock <= product.minStock);
     return <section className="page-card"><div className="page-heading"><span className="page-icon orange"><ShoppingBag size={20} /></span><div><h2>Reorder suggestions</h2><p>Products at or below their minimum stock level.</p></div></div>{low.length ? <><div className="suggestion-list">{low.map((product) => <div className="suggestion-row" key={product.id}><ProductGlyph color={product.color} /><div><b>{product.name}</b><small>{product.stock} {product.unit} left · minimum {product.minStock}</small></div><span className="status-pill low">Low stock</span></div>)}</div><button className="primary-button send-reorder" onClick={() => onReorder(low)}><MessageCircle size={17} /> Create WhatsApp reorder message <ArrowRight size={16} /></button></> : <div className="empty-state"><CheckCircle2 size={27} /><b>You’re all stocked up</b><span>There are no items to reorder right now.</span></div>}</section>;
   }
-  if (page === "Daily Summary") {
-    const today = activities.filter((activity) => dayKey(activity.createdAt) === dayKey());
-    const total = today.reduce((sum, activity) => sum + (activity.items || []).reduce((count, item) => count + item.quantity, 0), 0);
-    return <section className="page-card"><div className="page-heading"><span className="page-icon green"><ClipboardList size={20} /></span><div><h2>Daily summary</h2><p>{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</p></div></div><div className="summary-stats"><div><small>Transactions today</small><b>{today.length}</b></div><div><small>Units moved</small><b>{total}</b></div><div><small>Products tracked</small><b>{products.length}</b></div></div><h3 className="subheading">Current stock overview</h3><div className="summary-stock">{products.map((product) => <div key={product.id}><span>{product.name}</span><b>{product.stock} {product.unit}</b></div>)}</div><h3 className="subheading">Today’s activity</h3>{today.length ? <div className="report-list">{today.map((item) => <div className="report-row" key={item.id}><span className={`activity-icon ${item.type}`}><Activity size={15} /></span><div><b>{item.message}</b><small>{dateLabel(item.createdAt)}</small></div></div>)}</div> : <p className="empty-note">No transactions recorded today yet.</p>}</section>;
-  }
+  if (page === "Dead Stock") return <section className="page-card dead-stock-page">
+    <div className="page-heading"><span className="page-icon orange"><Clock3 size={20} /></span><div><h2>Dead stock</h2><p>Items with stock remaining and no sales activity for at least {DEAD_STOCK_THRESHOLD_DAYS} days.</p></div></div>
+    {deadStock.length ? <div className="table-wrap"><table className="dead-stock-table"><thead><tr><th>Product</th><th>Current stock</th><th>Inactive for</th><th>Last activity</th><th></th></tr></thead><tbody>{deadStock.map((product) => <Fragment key={product.id}><tr>
+      <td><div className="table-product"><ProductGlyph color={product.color} /><b>{product.name}</b></div></td>
+      <td>{product.stock} {product.unit}</td>
+      <td><span className="status-pill low">{product.daysInactive} days</span></td>
+      <td>{product.inactiveSinceType === "received" ? "Stock received" : product.lastSoldAt ? `Last sold ${new Date(product.lastSoldAt).toLocaleDateString("en-IN")}` : "Never sold"}</td>
+      <td><button className="table-reorder dead-stock-return" onClick={() => setReturnQuantities((current) => ({ ...current, [product.id]: current[product.id] || String(product.stock) }))}><RotateCcw size={14} /> Return to seller</button></td>
+    </tr>{returnQuantities[product.id] !== undefined && <tr key={`${product.id}-return`}><td colSpan="5"><form className="supplier-return-form" onSubmit={async (event) => {
+        event.preventDefault();
+        if (savingReturn) return;
+        setSavingReturn(product.id);
+        const saved = await onReturnToSupplier(product, returnQuantities[product.id]);
+        if (saved) setReturnQuantities((current) => {
+          const next = { ...current };
+          delete next[product.id];
+          return next;
+        });
+        setSavingReturn("");
+      }}>
+        <label>Quantity to return<input aria-label={`Quantity of ${product.name} to return`} type="number" min="1" max={product.stock} step="1" value={returnQuantities[product.id]} onChange={(event) => setReturnQuantities((current) => ({ ...current, [product.id]: event.target.value }))} required /></label>
+        <span>Up to {product.stock} {product.unit} in stock</span>
+        <button className="primary-button" type="submit" disabled={savingReturn === product.id}>{savingReturn === product.id ? "Recording…" : "Confirm return"}</button>
+        <button className="cancel-return" type="button" onClick={() => setReturnQuantities((current) => {
+          const next = { ...current };
+          delete next[product.id];
+          return next;
+        })}>Cancel</button>
+      </form></td></tr>}</Fragment>)}</tbody></table><p className="inline-hint">Only items with recorded sales or stock receipts are included. Returning stock updates inventory and adds a supplier-return transaction to Sales & Reports.</p></div> : <div className="empty-state"><CheckCircle2 size={27} /><b>No dead stock found</b><span>Products appear here after a sale or stock receipt has been recorded, then no sales or new stock are recorded for {DEAD_STOCK_THRESHOLD_DAYS} days. Older starter stock without transaction history cannot be dated reliably.</span></div>}
+  </section>;
   if (page === "Settings") return <section className="page-card"><div className="page-heading"><span className="page-icon blue"><Settings size={20} /></span><div><h2>Shop settings</h2><p>Personalize your workspace.</p></div></div><label className="settings-label">Shop name<input value={shopNameDraft} onChange={(event) => setShopNameDraft(event.target.value)} placeholder="Your shop name" /></label><button className="primary-button settings-save" onClick={() => setShopName(shopNameDraft.trim() || "My Kirana Shop")}>Save shop name</button><div className="settings-note"><CheckCircle2 size={17} /><span>Your inventory and customer records are private to your signed-in account.</span></div></section>;
   return null;
 }
 
 function typeName(type) {
-  return ({ sold: "Sale", received: "Stock received", returned: "Customer return", damaged: "Damaged stock", credit: "Udhaar", payment: "Payment" })[type] || "Stock update";
+  return ({ sold: "Sale", received: "Stock received", returned: "Customer return", "supplier-return": "Returned to supplier", damaged: "Damaged stock", credit: "Udhaar", payment: "Payment" })[type] || "Stock update";
 }
 
 function Dashboard({ user }) {
@@ -464,6 +494,40 @@ function Dashboard({ user }) {
   async function updateMinimum(product, minimum) {
     try { await setDoc(doc(productsCollection, product.id), { minStock: minimum }, { merge: true }); }
     catch (error) { showToast(`Could not update reorder level: ${error.message}`); }
+  }
+
+  async function returnToSupplier(product, rawQuantity) {
+    const quantity = Number(rawQuantity);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      showToast("Enter a whole number of items to return.");
+      return false;
+    }
+
+    const productRef = doc(productsCollection, product.id);
+    const activityRef = doc(collection(db, "users", user.uid, "activities"));
+    let remainingStock = 0;
+    try {
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(productRef);
+        if (!snapshot.exists()) throw new Error(`${product.name} is no longer in inventory.`);
+        const stored = snapshot.data();
+        const before = Number(stored.stock || 0);
+        if (quantity > before) throw new Error(`Only ${before} ${stored.unit} of ${stored.name} are in stock.`);
+        remainingStock = before - quantity;
+        transaction.update(productRef, { stock: remainingStock });
+        transaction.set(activityRef, {
+          type: "supplier-return",
+          message: `Returned ${quantity} ${stored.name} to supplier`,
+          items: [{ name: stored.name, quantity, before, after: remainingStock, unit: stored.unit, price: Number(stored.price || 0) }],
+          createdAt: serverTimestamp(),
+        });
+      });
+      showToast(`Recorded ${quantity} ${product.unit} of ${product.name} returned to the supplier. ${remainingStock} ${product.unit} remain in stock.`);
+      return true;
+    } catch (error) {
+      showToast(`Could not return stock to supplier: ${error.message}`);
+      return false;
+    }
   }
 
   async function addCustomerCredit(name, rawAmount) {
@@ -659,7 +723,7 @@ function Dashboard({ user }) {
     <main className="main-area">
       <header className="main-header"><div className="mobile-brand"><span className="brand-mark"><Store size={20} /></span><b>Vyapaari</b></div><div className="greeting"><span className="eyebrow">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" }).toUpperCase()}</span><h1>{greeting}, {user.displayName?.split(" ")[0] || "Ramesh"}! <span className="wave">👋</span></h1><p>Tell me what happened in your shop. I’ll update your stock, sales and records.</p></div><div className="header-actions"><div className="notification-wrap"><button className="header-icon" aria-label="Notifications" onClick={() => setNoticeOpen(!noticeOpen)}><Bell size={19} />{alerts.length > 0 && <span className="notification-dot" />}</button>{noticeOpen && <div className="notification-popover"><b>Stock alerts</b>{alerts.length ? alerts.map((item) => <span key={item.id}>{item.name}: {item.stock} {item.unit} left</span>) : <span>No active low-stock alerts.</span>}</div>}</div><div className="profile-menu-wrap"><button className="profile-circle" aria-label="Owner profile menu" onClick={() => setProfileMenuOpen(!profileMenuOpen)}>{profileInitial}</button>{profileMenuOpen && <div className="profile-popover"><b>{shopName}</b><span>{user.email}</span><button onClick={() => signOut(auth)}><LogOut size={14} /> Sign out</button></div>}</div></div></header>
       <div className="workspace-grid">
-        <div className="workspace-main">{page === "Chat" ? <ChatView user={user} products={products} activities={activities} onSend={sendMessage} busy={busy} onReorder={makeReorder} inventoryStatus={inventoryStatus} inventoryError={inventoryError} onRetryInventory={() => setInventoryRetry((value) => value + 1)} /> : <PageContent page={page} products={products} activities={activities} customers={customers} onUpdateMinStock={updateMinimum} onReorder={makeReorder} shopName={shopName} setShopName={setShopName} onAddCredit={addCustomerCredit} onRecordPayment={recordCustomerPayment} />}</div>
+        <div className="workspace-main">{page === "Chat" ? <ChatView user={user} products={products} activities={activities} onSend={sendMessage} busy={busy} onReorder={makeReorder} inventoryStatus={inventoryStatus} inventoryError={inventoryError} onRetryInventory={() => setInventoryRetry((value) => value + 1)} /> : <PageContent page={page} products={products} activities={activities} customers={customers} onUpdateMinStock={updateMinimum} onReorder={makeReorder} onReturnToSupplier={returnToSupplier} shopName={shopName} setShopName={setShopName} onAddCredit={addCustomerCredit} onRecordPayment={recordCustomerPayment} />}</div>
         <SidePanel products={products} activities={activities} customers={customers} onReorder={makeReorder} onNavigate={setPage} />
       </div>
     </main>

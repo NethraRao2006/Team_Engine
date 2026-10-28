@@ -665,3 +665,37 @@ td { padding: 12px 9px; border-bottom: 1px solid #f1f3f7; color: #536076; font-s
 .setup-card code { color: #a7412e; background: #fbefeb; }
 .spinner.dark { border-top-color: #c45538; }
 .login-brand:focus-visible { outline-color: #c45538; }
+
+.dead-stock-return {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #b44832;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.supplier-return-form {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #f0ddd5;
+  border-radius: 9px;
+  background: #fdf6f3;
+}
+.supplier-return-form label { display: grid; gap: 5px; color: #6b625e; font-size: 12px; font-weight: 600; }
+.supplier-return-form input { width: 120px; height: 38px; padding: 0 9px; border: 1px solid #e8d8d1; border-radius: 7px; color: #443b38; background: #fff; }
+.supplier-return-form input:focus { border-color: #d58c78; outline: 0; box-shadow: 0 0 0 3px #c4553818; }
+.supplier-return-form > span { align-self: center; color: #8c817b; font-size: 11px; }
+.supplier-return-form .primary-button { min-height: 38px; }
+.cancel-return { min-height: 38px; padding: 0 11px; border: 1px solid #e9ddd8; border-radius: 8px; color: #725e56; background: #fff; }
+.cancel-return:hover { background: #f7eeea; }
+
+@media (max-width: 680px) {
+  .dead-stock-table { min-width: 650px; }
+  .supplier-return-form { align-items: stretch; }
+  .supplier-return-form label { flex: 1 1 130px; }
+  .supplier-return-form input { width: 100%; }
+  .supplier-return-form > span { align-self: center; flex: 1 1 100%; }
+}
