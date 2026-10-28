@@ -1,0 +1,6 @@
+{
+  "name": "TeamEngine Kirana Assistant",
+  "description": "Mobile-first intelligent kirana shop assistant with voice recognition, real-time inventory, udhaar credit ledger, comprehensive audit logs, and Gemini-powered business analysis.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

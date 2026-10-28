@@ -1,5 +1,9 @@
 node_modules/
+build/
 dist/
-.env
-.env.local
-.firebase/
+coverage/
+.DS_Store
+*.log
+*.bundle
+.env*
+!.env.example
