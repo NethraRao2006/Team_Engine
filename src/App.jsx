@@ -91,7 +91,44 @@ function inventoryFailure(error) {
   return `Could not load inventory: ${error.message}`;
 }
 
-function LoginPage() {
+function LandingPage({ onGetStarted }) {
+  const features = [
+    { icon: Package, title: <>Track<br />Stock</> },
+    { icon: ShoppingBag, title: <>Manage<br />Sales</> },
+    { icon: Users, title: <>Track<br />Udhaar</> },
+    { icon: TrendingUp, title: <>Grow<br />Smarter</> },
+  ];
+
+  return <main className="landing-page">
+    <div className="landing-border top" aria-hidden="true" />
+    <div className="landing-border bottom" aria-hidden="true" />
+    {["top-left", "top-right", "bottom-left", "bottom-right"].map((corner) => <LandingFlower corner={corner} key={corner} />)}
+    <section className="landing-content">
+      <h1 className="landing-title">Vyapaari<svg className="landing-leaves" viewBox="0 0 42 46" aria-hidden="true"><path d="M7 35C8 18 18 7 37 4c-2 17-11 28-30 31Z" /><path d="M7 36c9-10 17-17 27-25" /><path d="M4 23C2 14 5 7 13 3c3 9 0 16-9 20Z" /></svg></h1>
+      <p className="landing-tagline">Turn inventory data into business decisions.</p>
+      <button className="landing-cta" onClick={onGetStarted}>Get Started <ArrowRight size={19} /></button>
+      <div className="landing-features" aria-label="Vyapaari features">
+        {features.map(({ icon: Icon, title }, index) => <div className="landing-feature" key={index}>
+          <span className="landing-feature-icon"><Icon size={27} strokeWidth={1.8} /></span>
+          <span>{title}</span>
+        </div>)}
+      </div>
+    </section>
+  </main>;
+}
+
+function LandingFlower({ corner }) {
+  return <svg className={`landing-flower ${corner}`} viewBox="0 0 120 120" aria-hidden="true">
+    <g fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="60" cy="60" r="43" />
+      <circle cx="60" cy="60" r="30" />
+      {Array.from({ length: 12 }, (_, index) => <path key={index} transform={`rotate(${index * 30} 60 60)`} d="M60 15 C70 25 72 35 60 43 C48 35 50 25 60 15Z" />)}
+    </g>
+    <circle cx="60" cy="60" r="7" fill="currentColor" />
+  </svg>;
+}
+
+function LoginPage({ onBack }) {
   const [signup, setSignup] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -119,7 +156,7 @@ function LoginPage() {
 
   return (
     <main className="login-page">
-      <div className="login-brand"><span className="brand-mark"><Store size={23} /></span><span><b>KiranaShop</b><small>ASSISTANT</small></span></div>
+      <button className="login-brand" onClick={onBack} aria-label="Return to Vyapaari home"><span className="brand-mark"><Store size={23} /></span><span><b>Vyapaari</b><small>KIRANA ASSISTANT</small></span></button>
       <section className="login-card">
         <div className="login-icon"><Sparkles size={21} /></div>
         <p className="eyebrow">YOUR SHOP, IN GOOD HANDS</p>
@@ -132,7 +169,7 @@ function LoginPage() {
           {error && <p className="form-error">{error}</p>}
           <button className="primary-button login-submit" disabled={busy}>{busy ? "Please wait…" : signup ? "Create account" : "Sign in"}<ArrowRight size={17} /></button>
         </form>
-        <p className="login-switch">{signup ? "Already have an account?" : "New to KiranaShop?"} <button onClick={() => { setSignup(!signup); setError(""); }}>{signup ? "Sign in" : "Create an owner account"}</button></p>
+        <p className="login-switch">{signup ? "Already have an account?" : "New to Vyapaari?"} <button onClick={() => { setSignup(!signup); setError(""); }}>{signup ? "Sign in" : "Create an owner account"}</button></p>
         <div className="secure-note"><CheckCircle2 size={15} /> Your shop data is private to your account</div>
       </section>
       <p className="login-footer">Simple · Smart · For Kirana Shops</p>
@@ -281,7 +318,7 @@ function SidePanel({ products, activities, customers, onReorder, onNavigate }) {
 function Sidebar({ active, onNavigate, user, onSignOut, shopName }) {
   const [profileOpen, setProfileOpen] = useState(false);
   return <aside className="sidebar">
-    <div className="brand"><span className="brand-mark"><Store size={22} /></span><span className="brand-copy"><b>KiranaShop</b><small>ASSISTANT</small></span></div>
+    <div className="brand"><span className="brand-mark"><Store size={22} /></span><span className="brand-copy"><b>Vyapaari</b><small>KIRANA ASSISTANT</small></span></div>
     <div className="nav-caption">WORKSPACE</div>
     <nav>{navItems.map(({ id, icon: Icon }) => <button className={`nav-item ${active === id ? "active" : ""}`} key={id} onClick={() => onNavigate(id)}><Icon size={18} strokeWidth={1.9} /><span>{id}</span>{id === "Reorder Suggestions" && <span className="nav-dot" />}</button>)}</nav>
     <div className="sidebar-bottom">
@@ -620,7 +657,7 @@ function Dashboard({ user }) {
   return <div className="app-shell">
     <Sidebar active={page} onNavigate={setPage} user={user} onSignOut={() => signOut(auth)} shopName={shopName} />
     <main className="main-area">
-      <header className="main-header"><div className="mobile-brand"><span className="brand-mark"><Store size={20} /></span><b>KiranaShop</b></div><div className="greeting"><span className="eyebrow">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" }).toUpperCase()}</span><h1>{greeting}, {user.displayName?.split(" ")[0] || "Ramesh"}! <span className="wave">👋</span></h1><p>Tell me what happened in your shop. I’ll update your stock, sales and records.</p></div><div className="header-actions"><div className="notification-wrap"><button className="header-icon" aria-label="Notifications" onClick={() => setNoticeOpen(!noticeOpen)}><Bell size={19} />{alerts.length > 0 && <span className="notification-dot" />}</button>{noticeOpen && <div className="notification-popover"><b>Stock alerts</b>{alerts.length ? alerts.map((item) => <span key={item.id}>{item.name}: {item.stock} {item.unit} left</span>) : <span>No active low-stock alerts.</span>}</div>}</div><div className="profile-menu-wrap"><button className="profile-circle" aria-label="Owner profile menu" onClick={() => setProfileMenuOpen(!profileMenuOpen)}>{profileInitial}</button>{profileMenuOpen && <div className="profile-popover"><b>{shopName}</b><span>{user.email}</span><button onClick={() => signOut(auth)}><LogOut size={14} /> Sign out</button></div>}</div></div></header>
+      <header className="main-header"><div className="mobile-brand"><span className="brand-mark"><Store size={20} /></span><b>Vyapaari</b></div><div className="greeting"><span className="eyebrow">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" }).toUpperCase()}</span><h1>{greeting}, {user.displayName?.split(" ")[0] || "Ramesh"}! <span className="wave">👋</span></h1><p>Tell me what happened in your shop. I’ll update your stock, sales and records.</p></div><div className="header-actions"><div className="notification-wrap"><button className="header-icon" aria-label="Notifications" onClick={() => setNoticeOpen(!noticeOpen)}><Bell size={19} />{alerts.length > 0 && <span className="notification-dot" />}</button>{noticeOpen && <div className="notification-popover"><b>Stock alerts</b>{alerts.length ? alerts.map((item) => <span key={item.id}>{item.name}: {item.stock} {item.unit} left</span>) : <span>No active low-stock alerts.</span>}</div>}</div><div className="profile-menu-wrap"><button className="profile-circle" aria-label="Owner profile menu" onClick={() => setProfileMenuOpen(!profileMenuOpen)}>{profileInitial}</button>{profileMenuOpen && <div className="profile-popover"><b>{shopName}</b><span>{user.email}</span><button onClick={() => signOut(auth)}><LogOut size={14} /> Sign out</button></div>}</div></div></header>
       <div className="workspace-grid">
         <div className="workspace-main">{page === "Chat" ? <ChatView user={user} products={products} activities={activities} onSend={sendMessage} busy={busy} onReorder={makeReorder} inventoryStatus={inventoryStatus} inventoryError={inventoryError} onRetryInventory={() => setInventoryRetry((value) => value + 1)} /> : <PageContent page={page} products={products} activities={activities} customers={customers} onUpdateMinStock={updateMinimum} onReorder={makeReorder} shopName={shopName} setShopName={setShopName} onAddCredit={addCustomerCredit} onRecordPayment={recordCustomerPayment} />}</div>
         <SidePanel products={products} activities={activities} customers={customers} onReorder={makeReorder} onNavigate={setPage} />
@@ -632,12 +669,34 @@ function Dashboard({ user }) {
 
 export default function App() {
   const [user, setUser] = useState(undefined);
+  const [route, setRoute] = useState(() => window.location.hash === "#login" ? "login" : "landing");
   useEffect(() => {
     if (!isFirebaseConfigured) return undefined;
     return onAuthStateChanged(auth, setUser);
   }, []);
 
-  if (!isFirebaseConfigured) return <main className="setup-page"><div className="setup-card"><span className="brand-mark"><Store size={24} /></span><p className="eyebrow">ONE QUICK SETUP</p><h1>Connect your Firebase project</h1><p>KiranaShop uses Firebase Authentication and Cloud Firestore to securely save owner accounts, inventory, activity, and customer balances.</p><ol><li>Create a Firebase project and enable <b>Email/Password</b> sign-in.</li><li>Create a Cloud Firestore database.</li><li>Copy <code>.env.example</code> to <code>.env.local</code> and add your Firebase web app config.</li><li>Apply the included <code>firestore.rules</code>, then restart the app.</li></ol><div className="setup-status"><AlertTriangle size={18} /><span>Firebase is not configured yet. Sign-in and cloud persistence are disabled until setup is complete.</span></div></div></main>;
+  useEffect(() => {
+    const syncRoute = () => setRoute(window.location.hash === "#login" ? "login" : "landing");
+    window.addEventListener("hashchange", syncRoute);
+    window.addEventListener("popstate", syncRoute);
+    return () => {
+      window.removeEventListener("hashchange", syncRoute);
+      window.removeEventListener("popstate", syncRoute);
+    };
+  }, []);
+
+  function navigate(routeName) {
+    const nextHash = routeName === "login" ? "#login" : "";
+    if (window.location.hash !== nextHash) {
+      window.history.pushState({}, "", `${window.location.pathname}${window.location.search}${nextHash}`);
+    }
+    setRoute(routeName);
+  }
+
+  if (!isFirebaseConfigured) return <main className="setup-page"><div className="setup-card"><span className="brand-mark"><Store size={24} /></span><p className="eyebrow">ONE QUICK SETUP</p><h1>Connect your Firebase project</h1><p>Vyapaari uses Firebase Authentication and Cloud Firestore to securely save owner accounts, inventory, activity, and customer balances.</p><ol><li>Create a Firebase project and enable <b>Email/Password</b> sign-in.</li><li>Create a Cloud Firestore database.</li><li>Copy <code>.env.example</code> to <code>.env.local</code> and add your Firebase web app config.</li><li>Apply the included <code>firestore.rules</code>, then restart the app.</li></ol><div className="setup-status"><AlertTriangle size={18} /><span>Firebase is not configured yet. Sign-in and cloud persistence are disabled until setup is complete.</span></div></div></main>;
   if (user === undefined) return <main className="loading-page"><span className="spinner dark" />Connecting securely…</main>;
-  return user ? <Dashboard user={user} /> : <LoginPage />;
+  if (user) return <Dashboard user={user} />;
+  return route === "login"
+    ? <LoginPage onBack={() => navigate("landing")} />
+    : <LandingPage onGetStarted={() => navigate("login")} />;
 }

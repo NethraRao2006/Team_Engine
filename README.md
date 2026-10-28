@@ -1,4 +1,4 @@
-# KiranaShop Assistant
+# Vyapaari
 
 A responsive, chat-first inventory dashboard for kirana shop owners. Owner accounts use Firebase Authentication; each account's products, stock activity, and customer balances are stored in Cloud Firestore.
 
